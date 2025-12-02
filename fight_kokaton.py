@@ -94,10 +94,10 @@ class Beam:
         ビーム画像Surfaceを生成する
         引数 bird：ビームを放つこうかとん（Birdインスタンス）
         """
-        self.img = pg.image.load(f"fig/beam.png")  # Surface
+        self.img = pg.image.load("fig/beam.png")  # Surface
         self.rct = self.img.get_rect()  # Rect
         self.rct.centery = bird.rct.centery  # ビームの中心縦座標 = こうかとんの中心縦座標
-        self.rct.left = bird.rct.right  # ビームの左座標 = こうかとんの右座標
+        self.rct.left = bird.rct.right      # ビームの左座標 = こうかとんの右座標
         self.vx, self.vy = +5, 0
 
     def update(self, screen: pg.Surface):
@@ -140,6 +140,32 @@ class Bomb:
             self.vy *= -1
         self.rct.move_ip(self.vx, self.vy)
         screen.blit(self.img, self.rct)
+
+
+# 演習課題3
+class Explosion:
+    """
+    爆弾打ち落とし時の爆発エフェクトに関するクラス
+    """
+    def __init__(self, bomb: Bomb):
+        """
+        爆発エフェクト用Surfaceを生成する
+        引数 bomb：爆発した爆弾（Bombインスタンス）
+        """
+        self.img = pg.image.load("fig/explosion.gif")  # 爆発画像
+        self.rct = self.img.get_rect()
+        self.rct.center = bomb.rct.center  # 爆発位置＝爆弾の中心
+        self.life = 20  # 何フレーム表示するか
+
+    def update(self, screen: pg.Surface):
+        """
+        爆発エフェクトを描画する
+        lifeを1ずつ減らし、0になったら描画しない
+        """
+        if self.life <= 0:
+            return
+        screen.blit(self.img, self.rct)
+        self.life -= 1
 
 
 # 演習課題1
@@ -188,8 +214,7 @@ def main():
         bombs.append(bomb)
 
     beams = []  # 複数ビーム用リスト
-    # beam = None  # ゲーム初期化時にはビームは存在しない（複数ビーム化のため未使用）
-
+    explosions = []  # 演習課題3：爆発エフェクトのリスト
     score = Score()  # スコアを生成
     clock = pg.time.Clock()
     tmr = 0
@@ -204,8 +229,48 @@ def main():
 
         screen.blit(bg_img, [0, 0])
 
-        # こうかとんと爆弾の衝突判定（ゲームオーバー）
-        for b, bomb in enumerate(bombs):
+        # こうかとんの移動
+        key_lst = pg.key.get_pressed()
+        bird.update(key_lst, screen)
+
+        # 画面全体のRect（範囲チェック用）
+        scr_rct = screen.get_rect()
+
+        # 演習課題2
+        new_beams = []
+        for beam in beams:
+            # まず位置更新＆描画
+            beam.update(screen)
+            # 画面内に残っているビームだけを new_beams に残す
+            if scr_rct.colliderect(beam.rct):
+                new_beams.append(beam)
+        beams = new_beams
+
+        # 爆弾の更新＋衝突判定をまとめて処理する
+        new_bombs = []
+        for bomb in bombs:
+            hit_by_beam = False  # この爆弾がビームに当たったかどうか
+
+            # 1. 先にビームとの衝突判定（当たった爆弾はゲームオーバー判定しない）
+            for i, beam in enumerate(beams):
+                if beam is None:
+                    continue
+                if beam.rct.colliderect(bomb.rct):
+                    # 演習課題3：爆発エフェクトを生成
+                    explosions.append(Explosion(bomb))
+                    # ビームは消す（あとでまとめて削除）
+                    beams[i] = None
+                    # スコア加算＆こうかとん画像変更
+                    score.add(1)
+                    bird.change_img(6, screen)
+                    hit_by_beam = True
+                    break  # この爆弾はビームに当たったので他のビームは見ない
+
+            if hit_by_beam:
+                # ビームで撃ち落とされた爆弾は new_bombs に入れない（消滅）
+                continue
+
+            # 2. ビームに当たっていない爆弾だけ，こうかとんとの衝突を判定
             if bird.rct.colliderect(bomb.rct):
                 # ゲームオーバー時に，こうかとん画像を切り替え，1秒間表示させる
                 bird.change_img(8, screen)
@@ -216,46 +281,22 @@ def main():
                 time.sleep(1)
                 return
 
-        # ビームと爆弾の衝突判定
-        for i, beam in enumerate(beams):
-            if beam is None:
-                continue
-            for j, bomb in enumerate(bombs):
-                if bomb is None:
-                    continue
-                if beam.rct.colliderect(bomb.rct):
-                    # 衝突したらビームと爆弾を消す（あとでまとめて削除）
-                    beams[i] = None
-                    bombs[j] = None
-                    score.add(1)
-                    bird.change_img(6, screen)
-                    pg.display.update()
-                    break  # 1発のビームで複数の爆弾を同時には壊さない想定
-
-        # None になった要素をまとめて除去
-        beams = [beam for beam in beams if beam is not None]
-        bombs = [bomb for bomb in bombs if bomb is not None]
-
-        key_lst = pg.key.get_pressed()
-        bird.update(key_lst, screen)
-
-        # 演習課題2：複数ビームの更新と画面外判定
-        # 画面全体のRect（範囲チェック用）
-        scr_rct = screen.get_rect()
-
-        # 生きているビームだけを再構成するリスト
-        new_beams = []
-        for beam in beams:
-            # まず位置更新＆描画
-            beam.update(screen)
-            # 画面内に残っているビームだけを new_beams に残す
-            if scr_rct.colliderect(beam.rct):
-                new_beams.append(beam)
-        beams = new_beams
-
-        # 爆弾の更新
-        for bomb in bombs:
+            # 3. 生き残った爆弾だけ更新して残す
             bomb.update(screen)
+            new_bombs.append(bomb)
+
+        bombs = new_bombs  # 爆弾リストを更新
+
+        # ビームリストから None になったものを除去
+        beams = [beam for beam in beams if beam is not None]
+
+        # 演習課題3：爆発エフェクトの更新
+        new_explosions = []
+        for ex in explosions:
+            ex.update(screen)
+            if ex.life > 0:  # 残り寿命があるものだけ残す
+                new_explosions.append(ex)
+        explosions = new_explosions
 
         # スコア描画
         score.update(screen)
