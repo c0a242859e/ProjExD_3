@@ -147,7 +147,7 @@ class Score:
     """
     def __init__(self):
         """
-        スコア表示用の設定
+        スコア表示用の初期設定（文字表示位置やフォントなど）
         """
         self.fonto = pg.font.SysFont("hgp創英角ﾎﾟｯﾌﾟ体", 30)
         self.color = (0, 0, 255)  # 青色
@@ -160,13 +160,13 @@ class Score:
 
     def add(self, point: int = 1):
         """
-        スコアを加算する
+        スコアを加算する（デフォルトは1）
         """
         self.value += point
 
     def update(self, screen: pg.Surface):
         """
-        スコアを再描画する
+        現在のスコアを画面に描画する
         引数 screen：画面Surface
         """
         self.img = self.fonto.render(f"Score: {self.value}", 0, self.color)
